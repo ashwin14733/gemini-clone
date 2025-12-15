@@ -1,3 +1,177 @@
+import { createContext, useState } from "react";
+import main from "../config/gemini";
+
+export const Context = createContext();
+
+const ContextProvider = ({ children }) => {
+    const [input, setInput] = useState("");
+    const [messages, setMessages] = useState([]);
+    const [chats, setChats] = useState([]); 
+    const [currentChatId, setCurrentChatId] = useState(null);
+    const [loading, setLoading] = useState(false);
+
+    const [imageData, setImageData] = useState(null);
+
+    // image upload function
+    const handleImageUpload = (file) => {
+      if (!file) return;
+
+      if(file.size > 4 * 1024 *1024){
+        alert("Image must be under 4MB");
+        return;
+      }
+
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setImageData({
+          base64: reader.result.split(",")[1],
+          preview: reader.result,
+          mimeType: file.type,
+        });
+
+
+        // Show image in chat
+        setMessages((prev) => [
+          ...prev,
+          {
+            role: "user",
+            content: `<img src="${reader.result}" class="chat-image" />`,
+          },
+        ]);
+        // setTimeout(()=>{
+        //   onsent("");
+        // }, 100);
+      };
+
+  reader.readAsDataURL(file);
+};
+
+
+
+
+  // Format Gemini response
+  const formatResponse = (response) => {
+    let parts = response.split("**");
+    let formatted = "";
+
+    for (let i = 0; i < parts.length; i++) {
+      if (i % 2 === 1) {
+        formatted += `<b style="font-weight:600">${parts[i]}</b>`;
+      } else {
+        formatted += parts[i];
+      }
+    }
+
+    formatted = formatted.replace(/^\s*\*\s*(.*)$/gm, "<br><b>$1</b>");
+    formatted = formatted.replace(/^\s*\d+\.\s*(.*)$/gm, "<br><b>$1</b>");
+
+    return formatted;
+  };
+
+  // Start a new chat
+  const newChat = () => {
+    setCurrentChatId(null);
+    setMessages([]);
+    setInput("");
+    setLoading(false);
+  };
+
+  // Send message (continue same chat)
+  const onSent = async (prompt) => {
+  const userMessage = prompt ?? input;
+
+  // allow image-only queries
+  if (!userMessage.trim() && !imageData) return;
+
+  setInput("");
+  setLoading(true);
+
+  let chatId = currentChatId;
+
+  // Create chat on first message
+  if (!chatId) {
+    chatId = Date.now();
+    setCurrentChatId(chatId);
+
+    setChats((prev) => [
+      ...prev,
+      {
+        id: chatId,
+        title: userMessage
+          ? userMessage.slice(0, 30)
+          : "Image search",
+        messages: [],
+      },
+    ]);
+  }
+
+  // Push text message (if exists)
+  let userMsg = null;
+  if (userMessage.trim()) {
+    userMsg = { role: "user", content: userMessage };
+    setMessages((prev) => [...prev, userMsg]);
+  }
+
+  // 🔥 Gemini call (TEXT + IMAGE)
+  const response = await main({
+    text: userMessage || "Describe this image",
+    image: imageData,
+  });
+
+  const formatted = formatResponse(response);
+
+  // Typing effect
+  let typed = "";
+  const words = formatted.split(" ");
+
+  for (let i = 0; i < words.length; i++) {
+    setTimeout(() => {
+      typed += words[i] + " ";
+
+      setMessages((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === "assistant") {
+          return [...prev.slice(0, -1), { role: "assistant", content: typed }];
+        }
+        return [...prev, { role: "assistant", content: typed }];
+      });
+
+      if(i === words.length -1){
+        setLoading(false);
+        setImageData(null)
+      }
+    }, 35 * i);
+  }
+
+  setLoading(false);
+  setImageData(null); // ✅ clear image after response
+};
+
+
+  return (
+    <Context.Provider
+      value={{
+        input,
+        setInput,
+        messages,
+        chats,
+        loading,
+        onSent,
+        newChat,
+        setMessages,
+        setCurrentChatId,
+        handleImageUpload,
+      }}
+    >
+      {children}
+    </Context.Provider>
+  );
+};
+
+export default ContextProvider;
+
+
+
 // import { createContext, useState } from "react";
 // import main from "../config/gemini";
 
@@ -126,165 +300,3 @@
 // }
 
 // export default ContextProvider;
-
-
-
-
-
-import { createContext, useState } from "react";
-import main from "../config/gemini";
-
-export const Context = createContext();
-
-const ContextProvider = ({ children }) => {
-    const [input, setInput] = useState("");
-    const [messages, setMessages] = useState([]);
-    const [chats, setChats] = useState([]); 
-    const [currentChatId, setCurrentChatId] = useState(null);
-    const [loading, setLoading] = useState(false);
-
-    const [imageData, setImageData] = useState(null);
-
-    // image upload function
-    const handleImageUpload = (file) => {
-  if (!file) return;
-
-  const reader = new FileReader();
-  reader.onloadend = () => {
-    setImageData({
-      base64: reader.result.split(",")[1],
-      preview: reader.result,
-      mimeType: file.type,
-    });
-
-    // Show image in chat
-    setMessages((prev) => [
-      ...prev,
-      {
-        role: "user",
-        content: `<img src="${reader.result}" class="chat-image" />`,
-      },
-    ]);
-  };
-
-  reader.readAsDataURL(file);
-};
-
-
-
-
-  // Format Gemini response
-  const formatResponse = (response) => {
-    let parts = response.split("**");
-    let formatted = "";
-
-    for (let i = 0; i < parts.length; i++) {
-      if (i % 2 === 1) {
-        formatted += `<b style="font-weight:600">${parts[i]}</b>`;
-      } else {
-        formatted += parts[i];
-      }
-    }
-
-    formatted = formatted.replace(/^\s*\*\s*(.*)$/gm, "<br><b>$1</b>");
-    formatted = formatted.replace(/^\s*\d+\.\s*(.*)$/gm, "<br><b>$1</b>");
-
-    return formatted;
-  };
-
-  // Start a new chat
-  const newChat = () => {
-    setCurrentChatId(null);
-    setMessages([]);
-    setInput("");
-    setLoading(false);
-  };
-
-  // Send message (continue same chat)
-  const onSent = async (prompt) => {
-  const userMessage = prompt ?? input;
-
-  // allow image-only queries
-  if (!userMessage.trim() && !imageData) return;
-
-  setInput("");
-  setLoading(true);
-
-  let chatId = currentChatId;
-
-  // Create chat on first message
-  if (!chatId) {
-    chatId = Date.now();
-    setCurrentChatId(chatId);
-
-    setChats((prev) => [
-      ...prev,
-      {
-        id: chatId,
-        title: userMessage
-          ? userMessage.slice(0, 30)
-          : "Image search",
-        messages: [],
-      },
-    ]);
-  }
-
-  // Push text message (if exists)
-  let userMsg = null;
-  if (userMessage.trim()) {
-    userMsg = { role: "user", content: userMessage };
-    setMessages((prev) => [...prev, userMsg]);
-  }
-
-  // 🔥 Gemini call (TEXT + IMAGE)
-  const response = await main({
-    text: userMessage || "Describe this image",
-    image: imageData,
-  });
-
-  const formatted = formatResponse(response);
-
-  // Typing effect
-  let typed = "";
-  const words = formatted.split(" ");
-
-  for (let i = 0; i < words.length; i++) {
-    setTimeout(() => {
-      typed += words[i] + " ";
-
-      setMessages((prev) => {
-        const last = prev[prev.length - 1];
-        if (last?.role === "assistant") {
-          return [...prev.slice(0, -1), { role: "assistant", content: typed }];
-        }
-        return [...prev, { role: "assistant", content: typed }];
-      });
-    }, 35 * i);
-  }
-
-  setLoading(false);
-  setImageData(null); // ✅ clear image after response
-};
-
-
-  return (
-    <Context.Provider
-      value={{
-        input,
-        setInput,
-        messages,
-        chats,
-        loading,
-        onSent,
-        newChat,
-        setMessages,
-        setCurrentChatId,
-        handleImageUpload,
-      }}
-    >
-      {children}
-    </Context.Provider>
-  );
-};
-
-export default ContextProvider;

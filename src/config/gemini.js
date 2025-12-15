@@ -24,7 +24,7 @@
 
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-const ai = new GoogleGenerativeAI("AIzaSyAKOAAnD5y4eNIMcsYSWCpNz-PGnJaucnI");
+const ai = new GoogleGenerativeAI(import.meta.env.VITE_GEMINI_API_KEY);
 
 export const model = ai.getGenerativeModel({
   model: "gemini-2.5-flash-lite",
