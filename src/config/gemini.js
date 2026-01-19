@@ -11,7 +11,7 @@ export const model = ai.getGenerativeModel({
 async function main({ text, image }) {
   const parts = [];
 
-  // ✅ Add image if exists
+  //  Add image if exists
   if (image) {
     parts.push({
       inlineData: {
@@ -21,7 +21,7 @@ async function main({ text, image }) {
     });
   }
 
-  // ✅ Add text if exists
+  //  Add text if exists
   if (text) {
     parts.push({ text });
   }
